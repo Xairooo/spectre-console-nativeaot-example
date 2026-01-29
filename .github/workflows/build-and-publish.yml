@@ -1,0 +1,79 @@
+name: Build and Publish Native AOT
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact: SpectreConsoleNativeAOT-linux-x64
+          - os: windows-latest
+            runtime: win-x64
+            artifact: SpectreConsoleNativeAOT-win-x64.exe
+          - os: macos-latest
+            runtime: osx-x64
+            artifact: SpectreConsoleNativeAOT-osx-x64
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Publish Native AOT
+      run: dotnet publish -c Release -r ${{ matrix.runtime }} --self-contained -p:PublishAot=true -o ./publish
+    
+    - name: Upload artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ./publish/SpectreConsoleNativeAOT.exe
+    
+    - name: Upload artifacts (Linux/macOS)
+      if: matrix.os != 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ./publish/SpectreConsoleNativeAOT
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+    
+    - name: Create Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Erstelle ein Release mit dem aktuellen Datum
+        DATE=$(date +'%Y.%m.%d-%H%M')
+        gh release create "v$DATE" \
+          --title "Release v$DATE" \
+          --notes "Automatisches Build vom $(date +'%d.%m.%Y %H:%M')" \
+          ./artifacts/**/*
