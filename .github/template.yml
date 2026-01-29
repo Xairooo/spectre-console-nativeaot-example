@@ -1,0 +1,9 @@
+name: Spectre.Console Native AOT Template
+description: A template for creating C# console applications with Spectre.Console and Native AOT compilation
+tags:
+  - csharp
+  - dotnet
+  - native-aot
+  - spectre-console
+  - console
+  - cli
