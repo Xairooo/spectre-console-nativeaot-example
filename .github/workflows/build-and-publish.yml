@@ -57,48 +57,72 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Download all artifacts
+    - name: Download Linux artifact
       uses: actions/download-artifact@v4
       with:
-        path: ./artifacts
+        name: SpectreConsoleNativeAOT-linux-x64
+        path: ./linux
     
-    - name: List downloaded artifacts (Debug)
-      run: |
-        echo "Artifact structure:"
-        ls -laR ./artifacts/
+    - name: Download Windows artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: SpectreConsoleNativeAOT-win-x64
+        path: ./windows
+    
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: SpectreConsoleNativeAOT-osx-x64
+        path: ./macos
     
     - name: Prepare release files
       run: |
-        # Erstelle ein Release-Verzeichnis und benenne die Dateien korrekt um
         mkdir -p ./release
         
-        # Linux Binary
-        if [ -f ./artifacts/SpectreConsoleNativeAOT-linux-x64/SpectreConsoleNativeAOT ]; then
-          cp ./artifacts/SpectreConsoleNativeAOT-linux-x64/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-linux-x64
-          chmod +x ./release/SpectreConsoleNativeAOT-linux-x64
-        fi
+        # Linux
+        cp ./linux/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-linux-x64
+        chmod +x ./release/SpectreConsoleNativeAOT-linux-x64
         
-        # Windows Binary
-        if [ -f ./artifacts/SpectreConsoleNativeAOT-win-x64/SpectreConsoleNativeAOT.exe ]; then
-          cp ./artifacts/SpectreConsoleNativeAOT-win-x64/SpectreConsoleNativeAOT.exe ./release/SpectreConsoleNativeAOT-win-x64.exe
-        fi
+        # Windows
+        cp ./windows/SpectreConsoleNativeAOT.exe ./release/SpectreConsoleNativeAOT-win-x64.exe
         
-        # macOS Binary
-        if [ -f ./artifacts/SpectreConsoleNativeAOT-osx-x64/SpectreConsoleNativeAOT ]; then
-          cp ./artifacts/SpectreConsoleNativeAOT-osx-x64/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-osx-x64
-          chmod +x ./release/SpectreConsoleNativeAOT-osx-x64
-        fi
+        # macOS
+        cp ./macos/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-osx-x64
+        chmod +x ./release/SpectreConsoleNativeAOT-osx-x64
         
         echo "Release files:"
         ls -lah ./release/
+        
+        # Zeige Dateigröße
+        du -h ./release/*
+    
+    - name: Generate release tag
+      id: tag
+      run: |
+        DATE=$(date +'%Y.%m.%d-%H%M')
+        echo "tag=v$DATE" >> $GITHUB_OUTPUT
+        echo "date=$(date +'%d.%m.%Y %H:%M')" >> $GITHUB_OUTPUT
     
     - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: Release ${{ steps.tag.outputs.tag }}
+        body: |
+          Automatisches Build vom ${{ steps.tag.outputs.date }}
+          
+          ## Downloads
+          - **Linux (x64)**: SpectreConsoleNativeAOT-linux-x64
+          - **Windows (x64)**: SpectreConsoleNativeAOT-win-x64.exe
+          - **macOS (x64)**: SpectreConsoleNativeAOT-osx-x64
+          
+          ## Native AOT
+          Diese Builds sind mit Native AOT kompiliert und benötigen keine .NET Runtime.
+        files: |
+          ./release/SpectreConsoleNativeAOT-linux-x64
+          ./release/SpectreConsoleNativeAOT-win-x64.exe
+          ./release/SpectreConsoleNativeAOT-osx-x64
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        # Erstelle ein Release mit dem aktuellen Datum
-        DATE=$(date +'%Y.%m.%d-%H%M')
-        gh release create "v$DATE" \
-          --title "Release v$DATE" \
-          --notes "Automatisches Build vom $(date +'%d.%m.%Y %H:%M')" \
-          ./release/*
