@@ -14,13 +14,16 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            artifact: SpectreConsoleNativeAOT-linux-x64
+            artifact-name: SpectreConsoleNativeAOT-linux-x64
+            binary-name: SpectreConsoleNativeAOT
           - os: windows-latest
             runtime: win-x64
-            artifact: SpectreConsoleNativeAOT-win-x64.exe
+            artifact-name: SpectreConsoleNativeAOT-win-x64
+            binary-name: SpectreConsoleNativeAOT.exe
           - os: macos-latest
             runtime: osx-x64
-            artifact: SpectreConsoleNativeAOT-osx-x64
+            artifact-name: SpectreConsoleNativeAOT-osx-x64
+            binary-name: SpectreConsoleNativeAOT
     
     runs-on: ${{ matrix.os }}
     
@@ -38,19 +41,11 @@ jobs:
     - name: Publish Native AOT
       run: dotnet publish -c Release -r ${{ matrix.runtime }} --self-contained -p:PublishAot=true -o ./publish
     
-    - name: Upload artifacts (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact }}
-        path: ./publish/SpectreConsoleNativeAOT.exe
-    
-    - name: Upload artifacts (Linux/macOS)
-      if: matrix.os != 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact }}
-        path: ./publish/SpectreConsoleNativeAOT
+        name: ${{ matrix.artifact-name }}
+        path: ./publish/${{ matrix.binary-name }}
 
   release:
     needs: build
@@ -67,6 +62,36 @@ jobs:
       with:
         path: ./artifacts
     
+    - name: List downloaded artifacts (Debug)
+      run: |
+        echo "Artifact structure:"
+        ls -laR ./artifacts/
+    
+    - name: Prepare release files
+      run: |
+        # Erstelle ein Release-Verzeichnis und benenne die Dateien korrekt um
+        mkdir -p ./release
+        
+        # Linux Binary
+        if [ -f ./artifacts/SpectreConsoleNativeAOT-linux-x64/SpectreConsoleNativeAOT ]; then
+          cp ./artifacts/SpectreConsoleNativeAOT-linux-x64/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-linux-x64
+          chmod +x ./release/SpectreConsoleNativeAOT-linux-x64
+        fi
+        
+        # Windows Binary
+        if [ -f ./artifacts/SpectreConsoleNativeAOT-win-x64/SpectreConsoleNativeAOT.exe ]; then
+          cp ./artifacts/SpectreConsoleNativeAOT-win-x64/SpectreConsoleNativeAOT.exe ./release/SpectreConsoleNativeAOT-win-x64.exe
+        fi
+        
+        # macOS Binary
+        if [ -f ./artifacts/SpectreConsoleNativeAOT-osx-x64/SpectreConsoleNativeAOT ]; then
+          cp ./artifacts/SpectreConsoleNativeAOT-osx-x64/SpectreConsoleNativeAOT ./release/SpectreConsoleNativeAOT-osx-x64
+          chmod +x ./release/SpectreConsoleNativeAOT-osx-x64
+        fi
+        
+        echo "Release files:"
+        ls -lah ./release/
+    
     - name: Create Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,4 +101,4 @@ jobs:
         gh release create "v$DATE" \
           --title "Release v$DATE" \
           --notes "Automatisches Build vom $(date +'%d.%m.%Y %H:%M')" \
-          ./artifacts/**/*
+          ./release/*
